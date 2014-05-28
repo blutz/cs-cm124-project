@@ -5,60 +5,103 @@
 # Expecting reads to be length 50
 
 import sys
-from copy import deepcopy
 
 MAX_INSERTION_LENGTH = 5
+MAX_NUM_INSERTIONS = 2
+SUFFIX_TREE_SIZE = 10
+READ_LENGTH = 50
+READ_DIVISIONS = READ_LENGTH/SUFFIX_TREE_SIZE
 
-def find_insertions(read, reference):
-    # First find where it needs to be aligned
-    align_index = None
-    align_mismatches = 0
-    align_inserts = [{"seq":"","pos":None},{"seq":"","pos":None}]
-    for i in range(len(reference)-len(read)+(2*MAX_INSERTION_LENGTH)):
-        mismatches = [0, 0, 0]
-        insertions = 0
-        insertion_seq = [{"seq":"","pos":None},{"seq":"","pos":None}]
-        bad_exit = False # Gets set when the loop breaks without finding a match
-        for j in range(len(read)-1):
-            # We've reached the end of the read
-            if j+sum(mismatches) >= len(read):
-                break
-            # We found a matching character
-            if read[j] == reference[j+i-sum(mismatches)]:
-                # Advance the insertion number if needed
-                if mismatches[insertions] > 0:
-                    insertions = insertions + 1
-            # We found a mismatch
-            else:
-                if insertions > 1:
-                    bad_exit = True
-                    break
-                mismatches[insertions] = mismatches[insertions] + 1
-                # Save this mismatch
-                insertion_seq[insertions]["seq"]+=read[j]
-                if not insertion_seq[insertions]["pos"]:
-                    insertion_seq[insertions]["pos"] = i+j-sum(mismatches)
-                if mismatches[insertions] > MAX_INSERTION_LENGTH:
-                    bad_exit = True
-                    break
-        if insertions < 2 or (insertions == 2 and mismatches[2] == 0):
-            # We've found a match with 2 or fewer insertions
-            if not align_index and not bad_exit:
-                align_index = i
-                align_mismatches = sum(mismatches)
-                align_inserts = deepcopy(insertion_seq)
-            elif sum(mismatches) < align_mismatches and not bad_exit:
-                align_index = i
-                align_mismatches = sum(mismatches)
-                align_inserts = deepcopy(insertion_seq)
-    if align_inserts[1]['pos'] == None:
-        align_inserts.pop(1)
-    if align_inserts[0]['pos'] == None:
-        align_inserts.pop(0)
+# Returns str/pos inserts needed to make fragment equal to the
+# start of text
+def min_insertions(fragment, text, end=False):
+    if fragment == "" or text == "":
+        return ([], True)
+    if end:
+        fragment = fragment[::-1]
+        text = text[::-1]
 
-    return align_inserts
-                
+    i = 0
+    inserts = []
+    inserts_cur = 0
+    inserts_len = 0
+    while i < len(fragment):
+        if (i+inserts_len) >= len(text):
+            return([], False)
+        # The boring case -- the text matches
+        if text[i+inserts_len] == fragment[i]:
+            if len(inserts) > inserts_cur:
+                inserts_cur = len(inserts)
+        else:
+            # We need to insert a new placeholder into inserts
+            if len(inserts) <= inserts_cur:
+                inserts.append({"pos":i, "str":""})
+            inserts[inserts_cur]['str'] += text[i+inserts_len]
+            inserts_len += 1
+        i += 1
 
+    if end:
+        for ins in inserts:
+            ins["str"] = ins["str"][::-1]
+            ins["pos"] = len(fragment) - ins["pos"] - len(ins["str"])
+
+    valid = True
+    for ins in inserts:
+        if len(ins["str"]) > 5:
+            valid = False
+
+    return inserts, valid
+
+# Returns a list of dictionaries with entries "pos" (where the insertion is) and "str"
+# (what the insertion is)
+def find_insertions(read, reference_genome, stree):
+    ret_size = 10
+    ret_val = []
+    # We're going to go through each of the five sections of the read
+    # and look them up in the suffix tree until we get a match
+    for i in range(READ_DIVISIONS - 1):
+        suffixes = stree[read[i*SUFFIX_TREE_SIZE:(i+1)*SUFFIX_TREE_SIZE]]
+        for suffix in suffixes:
+            inserts_left, valid_left = min_insertions(read[:i*SUFFIX_TREE_SIZE], reference_genome[:suffix], True)
+            inserts_right, valid_right = min_insertions(read[(i+1)*SUFFIX_TREE_SIZE:], reference_genome[suffix+SUFFIX_TREE_SIZE:], False)
+            if (((len(inserts_left) + len(inserts_right)) <= 2) and valid_left and
+                valid_right and ((len(inserts_left) + len(inserts_right) < ret_size) or
+                ret_val == None)):
+                for ins in inserts_left:
+                    ins["pos"] += i
+                for ins in inserts_right:
+                    ins["pos"] += i
+
+    return ret_val
+
+def all_gene_combos(togo):
+    # Base case
+    if togo == 1:
+        return ['A', 'G', 'C', 'T']
+
+    a = []
+    g = []
+    c = []
+    t = []
+    for b in all_gene_combos(togo-1):
+        a.append("A"+b)
+        g.append("G"+b)
+        c.append("C"+b)
+        t.append("T"+b)
+
+    return a + g + c + t
+
+def build_suffix_tree(genome):
+    stree = {}
+    # Build tree framework
+    for b in all_gene_combos(10):
+        stree[b] = []
+    # Now actually put data in the tree
+    for i in range(len(genome)-1-SUFFIX_TREE_SIZE):
+        stree[genome[i:i+SUFFIX_TREE_SIZE]].append(i)
+    return stree
+
+# Main setup to read in the files
 def main():
     if len(sys.argv) < 3:
         sys.stderr.write("Wrong number of arguments\n")
@@ -84,6 +127,7 @@ def main():
                 sys.stderr.write("Improper reference file format\n")
                 sys.exit()
 
+    stree = build_suffix_tree(reference_genome)
 
     # Now reference_genome is the genome and reads is an array of all reads
 
@@ -97,7 +141,7 @@ def main():
 
     insertions = []
     for read in reads:
-        read_insertions = find_insertions(read, reference_genome)
+        read_insertions = find_insertions(read, reference_genome, stree)
         if read_insertions:
             insertions.extend(read_insertions)
         print insertions

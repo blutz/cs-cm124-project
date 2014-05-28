@@ -5,28 +5,25 @@
 # Expecting reads to be length 50
 
 import sys
+from copy import deepcopy
 
 MAX_INSERTION_LENGTH = 5
 
 def find_insertions(read, reference):
-    print "Testing read " + read
     # First find where it needs to be aligned
     align_index = None
     align_mismatches = 0
+    align_inserts = [{"seq":"","pos":None},{"seq":"","pos":None}]
     for i in range(len(reference)-len(read)+(2*MAX_INSERTION_LENGTH)):
-        print "Checking index " + str(i)
         mismatches = [0, 0, 0]
         insertions = 0
+        insertion_seq = [{"seq":"","pos":None},{"seq":"","pos":None}]
         bad_exit = False # Gets set when the loop breaks without finding a match
-        if i > 8004:
-            sys.exit()
         for j in range(len(read)-1):
             # We've reached the end of the read
             if j+sum(mismatches) >= len(read):
-                print "1"
                 break
             # We found a matching character
-            print " " + read[j] + " " + str(insertions) + " " + str(mismatches)
             if read[j] == reference[j+i-sum(mismatches)]:
                 # Advance the insertion number if needed
                 if mismatches[insertions] > 0:
@@ -35,25 +32,31 @@ def find_insertions(read, reference):
             else:
                 if insertions > 1:
                     bad_exit = True
-                    print "2"
                     break
                 mismatches[insertions] = mismatches[insertions] + 1
+                # Save this mismatch
+                insertion_seq[insertions]["seq"]+=read[j]
+                if not insertion_seq[insertions]["pos"]:
+                    insertion_seq[insertions]["pos"] = i+j-sum(mismatches)
                 if mismatches[insertions] > MAX_INSERTION_LENGTH:
                     bad_exit = True
-                    print "3"
                     break
         if insertions < 2 or (insertions == 2 and mismatches[2] == 0):
             # We've found a match with 2 or fewer insertions
             if not align_index and not bad_exit:
                 align_index = i
                 align_mismatches = sum(mismatches)
-                print "NEW ALIGNMENT AT " + str(i) + " WITH " + str(sum(mismatches)) + " MISMATCHES"
+                align_inserts = deepcopy(insertion_seq)
             elif sum(mismatches) < align_mismatches and not bad_exit:
                 align_index = i
                 align_mismatches = sum(mismatches)
-    print read
-    print "FINAL ALIGNMENT AT " + str(align_index) + " WITH " + str(align_mismatches) + " MISMATCHES"
-    sys.exit()
+                align_inserts = deepcopy(insertion_seq)
+    if align_inserts[1]['pos'] == None:
+        align_inserts.pop(1)
+    if align_inserts[0]['pos'] == None:
+        align_inserts.pop(0)
+
+    return align_inserts
                 
 
 def main():
@@ -98,7 +101,7 @@ def main():
         if read_insertions:
             insertions.extend(read_insertions)
 
-    print sorted(insertions, key=lambda ins: ins[2])
+    print sorted(insertions, key=lambda ins: ins["pos"])
 
 
 if __name__ == "__main__":

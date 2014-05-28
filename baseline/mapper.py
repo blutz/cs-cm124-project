@@ -5,6 +5,7 @@
 # Expecting reads to be length 50
 
 import sys
+import resource
 from copy import deepcopy
 
 MAX_INSERTION_LENGTH = 5
@@ -67,6 +68,8 @@ def main():
     chromosome_number = 0
     reference_genome = ""
 
+    print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
+
     # These will throw errors if the file doesn't exist. Good enough for the baseline
     with open(sys.argv[1], "r") as ref_file:
         for line in ref_file:
@@ -84,9 +87,11 @@ def main():
                 sys.stderr.write("Improper reference file format\n")
                 sys.exit()
 
+    print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
 
     # Now reference_genome is the genome and reads is an array of all reads
 
+    print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
     reads = []
     with open(sys.argv[2], "r") as reads_file:
         for line in reads_file:
@@ -95,8 +100,11 @@ def main():
             # If we reach this point, line is a read sequence
             reads.extend(line.strip().split(","))
 
+    print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
     insertions = []
     for read in reads:
+        print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
+        sys.exit()
         read_insertions = find_insertions(read, reference_genome)
         if read_insertions:
             insertions.extend(read_insertions)

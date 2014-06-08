@@ -14,7 +14,7 @@ SUFFIX_TREE_SIZE = 10
 READ_LENGTH = 50
 READ_DIVISIONS = READ_LENGTH/SUFFIX_TREE_SIZE
 
-DEBUG=True
+DEBUG=False
 
 # Returns str/pos inserts needed to make fragment equal to the
 # start of text
@@ -59,32 +59,31 @@ def min_insertions(fragment, text, end=False):
 # Returns a list of dictionaries with entries "pos" (where the insertion is) and "str"
 # (what the insertion is)
 def find_insertions(read, reference_genome, stree):
-    print read
     ret_size = 10
     ret_val = []
+    read_start = 0
     # We're going to go through each of the five sections of the read
     # and look them up in the suffix tree until we get a match
     for i in range(READ_DIVISIONS):
-        print read[i*SUFFIX_TREE_SIZE:(i+1)*SUFFIX_TREE_SIZE]
         suffixes = stree[read[i*SUFFIX_TREE_SIZE:(i+1)*SUFFIX_TREE_SIZE]]
         for suffix in suffixes:
-            print suffix
             inserts_left, valid_left = min_insertions(read[:i*SUFFIX_TREE_SIZE], reference_genome[:suffix], True)
-            print inserts_left
-            print valid_left
             inserts_right, valid_right = min_insertions(read[(i+1)*SUFFIX_TREE_SIZE:], reference_genome[suffix+SUFFIX_TREE_SIZE:], False)
-            print inserts_right
-            print valid_right
-            print "-----"
-            if (((len(inserts_left) + len(inserts_right)) <= 2) and valid_left and
-                valid_right and ((len(inserts_left) + len(inserts_right) < ret_size) or
-                ret_val == None)):
+            if (((len(inserts_left) + len(inserts_right)) <= MAX_NUM_INSERTIONS) 
+                and valid_left and valid_right and ((len(inserts_left) 
+                + len(inserts_right) < ret_size) or ret_val == None)):
+                ret_val = []
                 for ins in inserts_left:
-                    ins["pos"] += i
+                    # Since we can have insertions before, suffix is rounded up
+                    # to the nearest 10 to try to get the location of the read.
+                    # This isn't the best way but whatever.
+                    ins["pos"] += int(round(suffix,-1)) - (i * SUFFIX_TREE_SIZE)
+                    ret_val.append(ins)
                 for ins in inserts_right:
-                    ins["pos"] += i
-        print "****"
-
+                    ins["pos"] += suffix + SUFFIX_TREE_SIZE
+                    ret_val.append(ins)
+    if ret_val != []:
+        sys.stderr.write("Found "+read+" "+str(ret_val)+"\n")
     return ret_val
 
 def all_gene_combos(togo):
@@ -140,7 +139,7 @@ def main():
                 continue
             # This line is info about the file
             elif line[0] == ">":
-                if line[1:3] == "chr":
+                if line[1:4] == "chr":
                     chromosome_number = line[4]
                 continue
             # This file is not structured properly
@@ -179,7 +178,7 @@ def main():
         if di >= 500 and DEBUG:
             print d4-d1
             print d5-d4
-            sys.exit()
+            # sys.exit()
         if read_insertions:
             insertions.extend(read_insertions)
         if DEBUG:
@@ -187,7 +186,7 @@ def main():
         di += 1
 
     for ins in sorted(insertions, key=lambda ins: ins["pos"]):
-        print str(chromosome_number)+","+str(ins['seq'])+","+str(ins['pos'])
+        print str(chromosome_number)+","+str(ins['str'])+","+str(ins['pos'])
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@
 import sys
 import resource
 from copy import deepcopy
+import datetime
 
 MAX_INSERTION_LENGTH = 5
 
@@ -69,6 +70,8 @@ def main():
     reference_genome = ""
 
     print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
+    d1 = datetime.datetime.now()
+
 
     # These will throw errors if the file doesn't exist. Good enough for the baseline
     with open(sys.argv[1], "r") as ref_file:
@@ -88,10 +91,12 @@ def main():
                 sys.exit()
 
     print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
+    d2 = datetime.datetime.now()
 
     # Now reference_genome is the genome and reads is an array of all reads
 
     print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
+    d3 = datetime.datetime.now()
     reads = []
     with open(sys.argv[2], "r") as reads_file:
         for line in reads_file:
@@ -101,14 +106,21 @@ def main():
             reads.extend(line.strip().split(","))
 
     print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
+    d4 = datetime.datetime.now()
+    di = 0
     insertions = []
     for read in reads:
         print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
-        sys.exit()
+        d5 = datetime.datetime.now()
+        if di >= 5:
+            print d4-d1
+            print d5-d4
+            sys.exit()
         read_insertions = find_insertions(read, reference_genome)
         if read_insertions:
             insertions.extend(read_insertions)
         print insertions
+        di += 1
 
     for ins in sorted(insertions, key=lambda ins: ins["pos"]):
         print str(chromosome_number)+","+str(ins['seq'])+","+str(ins['pos'])

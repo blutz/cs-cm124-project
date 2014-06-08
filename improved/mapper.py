@@ -6,6 +6,7 @@
 
 import sys
 import resource
+import datetime
 
 MAX_INSERTION_LENGTH = 5
 MAX_NUM_INSERTIONS = 2
@@ -104,6 +105,7 @@ def build_suffix_tree(genome):
 
 # Main setup to read in the files
 def main():
+    d1 = datetime.datetime.now()
     if len(sys.argv) < 3:
         sys.stderr.write("Wrong number of arguments\n")
         sys.exit()
@@ -130,8 +132,10 @@ def main():
                 sys.stderr.write("Improper reference file format\n")
                 sys.exit()
 
+    d2 = datetime.datetime.now()
     stree = build_suffix_tree(reference_genome)
     print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
+    d3 = datetime.datetime.now()
 
     # Now reference_genome is the genome and reads is an array of all reads
 
@@ -144,14 +148,22 @@ def main():
             # If we reach this point, line is a read sequence
             reads.extend(line.strip().split(","))
 
+    d4 = datetime.datetime.now()
+    di = 0
     print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
-    sys.exit()
     insertions = []
     for read in reads:
         read_insertions = find_insertions(read, reference_genome, stree)
+        print str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1048576) + "MB"
+        d5 = datetime.datetime.now()
+        if di >= 500:
+            print d4-d1
+            print d5-d4
+            sys.exit()
         if read_insertions:
             insertions.extend(read_insertions)
         print insertions
+        di += 1
 
     for ins in sorted(insertions, key=lambda ins: ins["pos"]):
         print str(chromosome_number)+","+str(ins['seq'])+","+str(ins['pos'])
